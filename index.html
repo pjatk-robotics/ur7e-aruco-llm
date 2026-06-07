@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ArUco Voice Panel</title>
+
+        <style>
+            :root {
+                color-scheme: light;
+                --bg: #f3f6fa;
+                --ink: #101820;
+                --muted: #647181;
+                --line: #d8e0ea;
+                --panel: rgba(255, 255, 255, 0.88);
+                --blue: #0077c8;
+                --green: #17a673;
+                --red: #d94343;
+                --amber: #d88a1d;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                overflow: hidden;
+                background: var(--bg);
+                color: var(--ink);
+                font-family:
+                    Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont,
+                    sans-serif;
+            }
+
+            body {
+                display: grid;
+                grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.75fr);
+                gap: 18px;
+                padding: 18px;
+            }
+
+            .camera-section,
+            .voice-section {
+                min-width: 0;
+                min-height: 0;
+                border: 1px solid var(--line);
+                background: var(--panel);
+                box-shadow: 0 18px 50px rgba(35, 48, 66, 0.12);
+                overflow: hidden;
+            }
+
+            .camera-section {
+                display: grid;
+                grid-template-rows: auto minmax(0, 1fr);
+            }
+
+            .section-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                padding: 14px 16px;
+                border-bottom: 1px solid var(--line);
+            }
+
+            .title {
+                margin: 0;
+                font-size: 16px;
+                font-weight: 700;
+                letter-spacing: 0;
+            }
+
+            .small {
+                color: var(--muted);
+                font-size: 13px;
+                white-space: nowrap;
+            }
+
+            .camera-wrap {
+                position: relative;
+                min-height: 0;
+                background: #111820;
+            }
+
+            .camera-feed {
+                width: 100%;
+                height: 100%;
+                display: block;
+                object-fit: contain;
+            }
+
+            .camera-empty {
+                position: absolute;
+                inset: 0;
+                display: grid;
+                place-items: center;
+                padding: 18px;
+                text-align: center;
+                color: rgba(255, 255, 255, 0.72);
+                font-size: 15px;
+                pointer-events: none;
+            }
+
+            .camera-wrap.camera-ready .camera-empty {
+                display: none;
+            }
+
+            .voice-section {
+                display: grid;
+                grid-template-rows: minmax(240px, 0.95fr) auto minmax(210px, 0.8fr);
+            }
+
+            .orb-wrap {
+                position: relative;
+                min-height: 0;
+                overflow: hidden;
+                background:
+                    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.95), transparent 42%),
+                    linear-gradient(145deg, #e8f1f8, #ffffff);
+            }
+
+            .orb-wrap canvas {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                display: block;
+            }
+
+            .agent-label {
+                position: absolute;
+                inset: 0;
+                z-index: 1;
+                display: grid;
+                place-items: center;
+                padding: 24px;
+                color: rgba(255, 255, 255, 0.92);
+                font-size: clamp(28px, 4vw, 48px);
+                font-weight: 800;
+                line-height: 1.08;
+                letter-spacing: 0;
+                text-align: center;
+                text-shadow:
+                    0 2px 10px rgba(0, 60, 120, 0.42),
+                    0 0 26px rgba(0, 119, 200, 0.36);
+                overflow-wrap: anywhere;
+                pointer-events: none;
+            }
+
+            .status-bar {
+                display: grid;
+                gap: 6px;
+                padding: 16px;
+                border-top: 1px solid var(--line);
+                border-bottom: 1px solid var(--line);
+                background: rgba(255, 255, 255, 0.72);
+            }
+
+            .phase {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-width: 0;
+            }
+
+            .dot {
+                width: 10px;
+                height: 10px;
+                flex: 0 0 auto;
+                border-radius: 50%;
+                background: var(--blue);
+                box-shadow: 0 0 0 6px rgba(0, 119, 200, 0.14);
+            }
+
+            .dot.error {
+                background: var(--red);
+                box-shadow: 0 0 0 6px rgba(217, 67, 67, 0.14);
+            }
+
+            .dot.selected {
+                background: var(--green);
+                box-shadow: 0 0 0 6px rgba(23, 166, 115, 0.14);
+            }
+
+            .phase-text {
+                min-width: 0;
+                font-size: 22px;
+                font-weight: 760;
+                line-height: 1.1;
+                overflow-wrap: anywhere;
+            }
+
+            .message {
+                min-height: 20px;
+                color: var(--muted);
+                font-size: 14px;
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+            }
+
+            .details {
+                display: grid;
+                align-content: start;
+                gap: 14px;
+                padding: 16px;
+                overflow: auto;
+            }
+
+            .listen-button {
+                width: 100%;
+                min-height: 46px;
+                border: 1px solid rgba(0, 119, 200, 0.32);
+                background: var(--blue);
+                color: #ffffff;
+                font: inherit;
+                font-size: 15px;
+                font-weight: 760;
+                cursor: pointer;
+                transition:
+                    transform 140ms ease,
+                    opacity 140ms ease,
+                    background 140ms ease;
+            }
+
+            .listen-button:hover:not(:disabled) {
+                background: #006bb4;
+            }
+
+            .listen-button:active:not(:disabled) {
+                transform: translateY(1px);
+            }
+
+            .listen-button:disabled {
+                cursor: default;
+                opacity: 0.48;
+            }
+
+            .steps {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 8px;
+            }
+
+            .step {
+                min-width: 0;
+                padding: 9px 8px;
+                border: 1px solid var(--line);
+                background: #f8fafc;
+                color: var(--muted);
+                font-size: 12px;
+                font-weight: 650;
+                text-align: center;
+            }
+
+            .step.active {
+                border-color: rgba(0, 119, 200, 0.35);
+                background: rgba(0, 119, 200, 0.1);
+                color: var(--blue);
+            }
+
+            .step.done {
+                border-color: rgba(23, 166, 115, 0.32);
+                background: rgba(23, 166, 115, 0.1);
+                color: var(--green);
+            }
+
+            .field {
+                display: grid;
+                gap: 5px;
+            }
+
+            .label {
+                color: var(--muted);
+                font-size: 12px;
+                font-weight: 700;
+                text-transform: uppercase;
+            }
+
+            .value {
+                min-height: 24px;
+                padding-bottom: 9px;
+                border-bottom: 1px solid var(--line);
+                font-size: 15px;
+                line-height: 1.35;
+                overflow-wrap: anywhere;
+            }
+
+            @media (max-width: 980px) {
+                body {
+                    grid-template-columns: 1fr;
+                    grid-template-rows: minmax(260px, 1fr) minmax(420px, 1fr);
+                    overflow: auto;
+                }
+
+                .voice-section {
+                    grid-template-rows: minmax(220px, 0.8fr) auto minmax(220px, 1fr);
+                }
+            }
+        </style>
+    </head>
+
+    <body>
+        <section class="camera-section">
+            <div class="section-head">
+                <h1 class="title">ArUco Camera</h1>
+                <div id="detected" class="small">ID: -</div>
+            </div>
+
+            <div class="camera-wrap">
+                <div class="camera-empty">Waiting for camera image</div>
+                <img
+                    id="camera-feed"
+                    class="camera-feed"
+                    alt=""
+                />
+            </div>
+        </section>
+
+        <section class="voice-section">
+            <div id="orb-wrap" class="orb-wrap">
+                <div class="agent-label">AI Agent</div>
+            </div>
+
+            <div class="status-bar">
+                <div class="phase">
+                    <span id="phase-dot" class="dot"></span>
+                    <div id="phase-text" class="phase-text">Ready</div>
+                </div>
+                <div id="message" class="message">
+                    Ready for a voice command.
+                </div>
+            </div>
+
+            <div class="details">
+                <button id="listen-button" class="listen-button" type="button" disabled>
+                    Start Listening
+                </button>
+
+                <div class="steps">
+                    <div class="step" data-step="listening">Listening</div>
+                    <div class="step" data-step="transcribing">Transcribing</div>
+                    <div class="step" data-step="selecting">Choosing</div>
+                    <div class="step" data-step="selected">Result</div>
+                </div>
+
+                <div class="field">
+                    <div class="label">AI Query</div>
+                    <div id="rag-query" class="value">-</div>
+                </div>
+
+                <div class="field">
+                    <div class="label">Candidates</div>
+                    <div id="candidates" class="value">-</div>
+                </div>
+            </div>
+        </section>
+
+        <script type="module">
+            import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
+
+            const orbWrap = document.querySelector("#orb-wrap");
+            const cameraWrap = document.querySelector(".camera-wrap");
+            const cameraFeed = document.querySelector("#camera-feed");
+            const cameraEmpty = document.querySelector(".camera-empty");
+            const phaseText = document.querySelector("#phase-text");
+            const phaseDot = document.querySelector("#phase-dot");
+            const message = document.querySelector("#message");
+            const agentLabel = document.querySelector(".agent-label");
+            const ragQuery = document.querySelector("#rag-query");
+            const candidates = document.querySelector("#candidates");
+            const detected = document.querySelector("#detected");
+            const listenButton = document.querySelector("#listen-button");
+            const stepEls = [...document.querySelectorAll(".step")];
+
+            const scene = new THREE.Scene();
+            const orbCamera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+            orbCamera.position.z = 3;
+
+            const renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true,
+            });
+            renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+            orbWrap.appendChild(renderer.domElement);
+
+            scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+
+            const light = new THREE.PointLight(0x66ccff, 2);
+            light.position.set(3, 3, 3);
+            scene.add(light);
+
+            const geometry = new THREE.SphereGeometry(1, 128, 128);
+            const material = new THREE.ShaderMaterial({
+                transparent: true,
+                depthWrite: false,
+                uniforms: {
+                    time: { value: 0 },
+                    audio: { value: 0 },
+                },
+                vertexShader: `
+                    uniform float time;
+                    uniform float audio;
+
+                    varying vec3 vNormal;
+
+                    float noise(vec3 p) {
+                        return sin(p.x * 3.0 + time)
+                            + sin(p.y * 2.0 + time * 1.2)
+                            + sin(p.z * 4.0 + time * 0.8);
+                    }
+
+                    void main() {
+                        vNormal = normal;
+                        float n = noise(position * 1.2);
+                        float displacement = n * 0.05 * audio;
+                        vec3 newPosition = position + normal * displacement;
+
+                        gl_Position =
+                            projectionMatrix *
+                            modelViewMatrix *
+                            vec4(newPosition, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vNormal;
+
+                    void main() {
+                        float fresnel =
+                            pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.0);
+
+                        vec3 colorA = vec3(1.0);
+                        vec3 colorB = vec3(0.0, 0.65, 1.0);
+                        vec3 color = mix(colorA, colorB, fresnel);
+                        float alpha = 0.35 + fresnel * 0.35;
+
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `,
+            });
+
+            const orb = new THREE.Mesh(geometry, material);
+            scene.add(orb);
+
+            const dataArray = new Uint8Array(256);
+            let socket = null;
+            let socketReady = false;
+            let reconnectTimer = null;
+            let currentPhase = "idle";
+
+            const phaseLabels = {
+                starting: "Start",
+                loading_voice: "Loading Voice",
+                connecting_robot: "Connecting Robot",
+                idle: "Ready",
+                listening: "Listening",
+                checking_audio: "Checking Audio",
+                normalizing: "Preparing",
+                transcribing: "Transcribing",
+                selecting: "Choosing",
+                selected: "Selected",
+                error: "Attention",
+                stopped: "Stop",
+            };
+
+            const containerNames = {
+                0: "PJATK fudge candies",
+                1: "Pens",
+                2: "Quote cards",
+                3: "Drawing pencils",
+                4: "Stickers",
+                5: "Clickers, keychains and wristbands",
+            };
+
+            const agentResponses = {
+                0: "Sweet choice.",
+                1: "Pens coming up.",
+                2: "A thought for you.",
+                3: "Let's draw.",
+                4: "Sticker time.",
+                5: "Stress relief ready.",
+            };
+
+            const stepIndexByPhase = {
+                listening: 0,
+                checking_audio: 0,
+                normalizing: 0,
+                transcribing: 1,
+                selecting: 2,
+                selected: 3,
+            };
+
+            function resizeOrb() {
+                const rect = orbWrap.getBoundingClientRect();
+                const width = Math.max(1, Math.floor(rect.width));
+                const height = Math.max(1, Math.floor(rect.height));
+                renderer.setSize(width, height, true);
+                orbCamera.aspect = rect.width / Math.max(rect.height, 1);
+                orbCamera.updateProjectionMatrix();
+            }
+
+            function setupCameraFeed() {
+                const streamUrl =
+                    location.protocol === "http:" || location.protocol === "https:"
+                        ? `${location.origin}/camera.mjpg`
+                        : "http://localhost:8766/camera.mjpg";
+
+                cameraFeed.src = `${streamUrl}?t=${Date.now()}`;
+
+                cameraFeed.addEventListener("load", () => {
+                    cameraWrap.classList.add("camera-ready");
+                });
+
+                cameraFeed.addEventListener("error", () => {
+                    cameraWrap.classList.remove("camera-ready");
+                    cameraEmpty.textContent =
+                        "Cannot connect to the camera stream. Check that main.py is running.";
+                    setTimeout(() => {
+                        cameraFeed.src = `${streamUrl}?t=${Date.now()}`;
+                    }, 1200);
+                });
+            }
+
+            function setSteps(phase) {
+                const activeIndex = stepIndexByPhase[phase];
+                stepEls.forEach((el, index) => {
+                    el.classList.toggle("active", index === activeIndex);
+                    el.classList.toggle(
+                        "done",
+                        typeof activeIndex === "number" && index < activeIndex,
+                    );
+                });
+
+                if (phase === "selected") {
+                    stepEls.forEach((el) => {
+                        el.classList.remove("active");
+                        el.classList.add("done");
+                    });
+                }
+            }
+
+            function updateStatus(status) {
+                if (!status) {
+                    return;
+                }
+
+                const phase = status.phase || "idle";
+                currentPhase = phase;
+                phaseText.textContent = phaseLabels[phase] || phase;
+                message.textContent = status.message || "";
+                listenButton.disabled =
+                    !socketReady || !(phase === "idle" || phase === "error");
+
+                phaseDot.classList.toggle("error", phase === "error");
+                phaseDot.classList.toggle("selected", phase === "selected");
+                setSteps(phase);
+
+                if (Array.isArray(status.detected_ids)) {
+                    detected.textContent = status.detected_ids.length
+                        ? `ID: ${status.detected_ids.join(", ")}`
+                        : "ID: -";
+                }
+
+                if (typeof status.rag_query === "string") {
+                    ragQuery.textContent = status.rag_query || "-";
+                }
+
+                if (typeof status.selected_id === "number") {
+                    agentLabel.textContent =
+                        agentResponses[status.selected_id] || "On it.";
+                }
+
+                if (Array.isArray(status.candidates) && status.candidates.length) {
+                    candidates.textContent = status.candidates
+                        .map((item) => {
+                            const name = containerNames[item.id] || item.name || "Item";
+                            return `ID=${item.id} ${name}`;
+                        })
+                        .join(" | ");
+                }
+
+                if (
+                    phase === "idle" ||
+                    phase === "listening" ||
+                    phase === "starting" ||
+                    phase === "loading_voice" ||
+                    phase === "connecting_robot"
+                ) {
+                    agentLabel.textContent = "AI Agent";
+                }
+
+                if (phase === "listening") {
+                    ragQuery.textContent = "-";
+                    candidates.textContent = "-";
+                }
+            }
+
+            function sendCommand(command, payload = {}) {
+                if (!socket || socket.readyState !== WebSocket.OPEN) {
+                    updateStatus({
+                        phase: "error",
+                        message: "The web panel is not connected to the program",
+                    });
+                    return;
+                }
+
+                socket.send(JSON.stringify({ command, ...payload }));
+            }
+
+            function requestListening() {
+                if (!(currentPhase === "idle" || currentPhase === "error")) {
+                    return;
+                }
+
+                listenButton.disabled = true;
+                sendCommand("start_listening");
+            }
+
+            function connectSocket() {
+                socket = new WebSocket("ws://localhost:8765");
+
+                socket.onopen = () => {
+                    socketReady = true;
+                    listenButton.disabled =
+                        !(currentPhase === "idle" || currentPhase === "error");
+                };
+
+                socket.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        if (typeof data.audio === "number") {
+                            const value = Math.min(
+                                255,
+                                Math.max(0, Math.floor(data.audio)),
+                            );
+                            dataArray.fill(value);
+                        }
+
+                        if (data.status) {
+                            updateStatus(data.status);
+                        }
+                    } catch {
+                        dataArray.fill(0);
+                    }
+                };
+
+                socket.onclose = () => {
+                    socketReady = false;
+                    dataArray.fill(0);
+                    updateStatus({
+                        phase: "idle",
+                        message: "Waiting for connection to the program",
+                    });
+
+                    if (reconnectTimer === null) {
+                        reconnectTimer = setTimeout(() => {
+                            reconnectTimer = null;
+                            connectSocket();
+                        }, 1000);
+                    }
+                };
+
+                socket.onerror = () => {
+                    socket.close();
+                };
+            }
+
+            function animate(t) {
+                requestAnimationFrame(animate);
+
+                let avg = 0;
+                for (let i = 0; i < dataArray.length; i += 1) {
+                    avg += dataArray[i];
+                }
+                avg /= dataArray.length;
+
+                material.uniforms.time.value = t * 0.001;
+                material.uniforms.audio.value = avg / 128.0;
+
+                orb.rotation.y += 0.002;
+                orb.rotation.x += 0.001;
+                orb.scale.setScalar(1 + avg * 0.0015);
+
+                renderer.render(scene, orbCamera);
+            }
+
+            resizeOrb();
+            setupCameraFeed();
+            connectSocket();
+            animate();
+
+            listenButton.addEventListener("click", requestListening);
+
+            addEventListener("keydown", (event) => {
+                if (event.key !== "Enter" || event.repeat) {
+                    return;
+                }
+
+                event.preventDefault();
+                requestListening();
+            });
+
+            addEventListener("resize", resizeOrb);
+        </script>
+    </body>
+</html>

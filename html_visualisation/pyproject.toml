@@ -1,0 +1,18 @@
+[project]
+name = "aruco-project"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "langchain>=1.2.18",
+    "langchain-ollama>=1.1.0",
+    "opencv-contrib-python>=4.13.0.92",
+    "opencv-python>=4.13.0.92",
+    "opencv-python-headless>=4.13.0.92",
+    "opencv-stubs>=0.1.3",
+    "sounddevice>=0.5.5",
+    "ur-rtde>=1.6.3",
+    "whisper>=1.1.10",
+    "websockets>=13.0",
+]

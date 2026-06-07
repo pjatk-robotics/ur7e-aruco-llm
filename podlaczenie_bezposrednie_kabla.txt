@@ -1,0 +1,33 @@
+W PowerShell uruchomionym jako Administrator:
+
+netsh interface ipv4 set address name="Ethernet" static 10.20.3.20 255.255.255.0
+
+Sprawdź:
+
+ping 10.20.3.136
+Test-NetConnection 10.20.3.136 -Port 30004
+
+--
+
+notatka z terminala
+(.venv) PS C:\aruco_projekt> python main.py                                                                                             
+[AudioServer] Visualization websocket: ws://localhost:8765
+[AudioServer] Open: http://localhost:8766/
+[AudioServer] Client connected. Total clients: 1
+Loading Whisper model (small)...
+Whisper ready!
+Checking Ollama (qwen2.5:0.5b)...
+WARNING: Ollama is not available. Using lexical RAG fallback only.
+Voice container selector ready!
+TCP set to gripper: [0.0, 0.0, 0.18, 0.0, 0.0, 0.0]
+Activating Robotiq Hand-E
+Activating Robotiq Hand-E: OK
+Setting Robotiq force to 50%
+Setting Robotiq force to 50%: OK
+Setting Robotiq speed to 80%
+Setting Robotiq speed to 80%: OK
+Moving to HOME joints
+Moving joints to: [0.7588008642196655, -1.9053269825377406, -1.0557525157928467, -1.7532373867430628, 1.5716708898544312, 0.0791720449924469]
+Detected marker IDs: [0, 1, 2, 3, 4, 5]
+Open the web panel and press Enter or Start Listening.
+Use Ctrl+C in this terminal to quit.
