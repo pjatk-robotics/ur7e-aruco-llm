@@ -9,6 +9,13 @@ import numpy as np
 from transforms import Transformations
 
 
+CAPTURE_BACKENDS = {
+    "msmf": ("MSMF", cv2.CAP_MSMF),
+    "dshow": ("DSHOW", cv2.CAP_DSHOW),
+    "any": ("ANY", cv2.CAP_ANY),
+}
+
+
 class ArucoCamera:
     """Continuously captures camera frames and estimates marker-to-camera poses."""
 
@@ -18,16 +25,21 @@ class ArucoCamera:
         marker_length=0.032,
         max_distance=1.5,
         show_window=False,
+        backend="dshow",
     ):
+        self.backend_name, self.backend_id = self._resolve_backend(backend)
+
         # Match the capture settings used during camera calibration.
-        self.cap = cv2.VideoCapture(cam_id, cv2.CAP_MSMF)
+        self.cap = cv2.VideoCapture(cam_id, self.backend_id)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 
         if not self.cap.isOpened():
-            raise RuntimeError(f"Cannot open camera {cam_id}")
+            raise RuntimeError(
+                f"Cannot open camera {cam_id} with backend {self.backend_name}"
+            )
 
         self.marker_length = marker_length
         self.max_distance = max_distance
@@ -75,6 +87,20 @@ class ArucoCamera:
         self._lock = threading.Lock()
         self._running = False
         self._thread = None
+
+    @staticmethod
+    def _resolve_backend(backend):
+        if isinstance(backend, str):
+            key = backend.lower()
+            try:
+                return CAPTURE_BACKENDS[key]
+            except KeyError as exc:
+                choices = ", ".join(sorted(CAPTURE_BACKENDS))
+                raise ValueError(
+                    f"Unknown camera backend {backend!r}. Use one of: {choices}"
+                ) from exc
+
+        return str(backend), int(backend)
 
     def start_preview(self):
         """Start the background capture and marker detection loop."""

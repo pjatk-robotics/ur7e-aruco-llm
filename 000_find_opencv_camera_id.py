@@ -168,8 +168,8 @@ def draw_label(frame, lines):
 def preview_candidates(candidates, width, height):
     print("\nPreview controls:")
     print("  s = select this camera ID")
-    print("  n / ENTER / SPACE = next camera")
-    print("  q / ESC = quit preview")
+    print("  ENTER = next camera")
+    print("  ESC = quit preview")
 
     selected = None
     for info in candidates:
@@ -195,7 +195,7 @@ def preview_candidates(candidates, width, height):
                 [
                     f"OpenCV camera ID: {camera_id}  Backend: {backend_name}",
                     "If this is the Orbec/Orbbec image, press s.",
-                    "Press n for next, q to quit.",
+                    "Press ENTER for next, ESC to quit.",
                 ],
             )
             cv2.imshow(WINDOW_NAME, frame)
@@ -228,7 +228,7 @@ def main():
     parser.add_argument(
         "--backend",
         choices=sorted(BACKENDS.keys()),
-        default="msmf",
+        default="dshow",
         help="Use msmf for your current scripts, or try dshow if MSMF fails.",
     )
     parser.add_argument("--width", type=int, default=1280)

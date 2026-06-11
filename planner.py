@@ -35,12 +35,31 @@ class Planner:
         self.tf = tf
         self.robot = robot
         self.voice_selector = voice_selector
+        self.audio_visualizer = getattr(voice_selector, "audio_visualizer", None)
+        self.robot_disabled_reason = None
+
+        if self.robot is None:
+            self.robot_disabled_reason = "robot is not connected"
+
+        if self.robot is not None and self.tf is None:
+            self.robot_disabled_reason = "hand-eye calibration is not available"
+            self._stop_robot_safely()
+            self.robot = None
 
         # Safe joint poses keep long moves predictable.
-        positions = self.load_positions()
-
-        self.home_joints = positions["home"]["joints_rad"]
-        self.transfer_joints = positions["transfer"]["joints_rad"]
+        self.home_joints = None
+        self.transfer_joints = None
+        if self.robot is not None:
+            try:
+                positions = self.load_positions()
+                self.home_joints = positions["home"]["joints_rad"]
+                self.transfer_joints = positions["transfer"]["joints_rad"]
+            except Exception as exc:
+                self.robot_disabled_reason = (
+                    f"robot positions could not be loaded: {exc}"
+                )
+                self._stop_robot_safely()
+                self.robot = None
 
         # Grip points are expressed in each marker's local coordinate frame.
         self.grip_points_marker = {
@@ -64,7 +83,13 @@ class Planner:
         """Repeatedly ask for a marker ID and run the pick-place cycle."""
         self.cam.start_preview()
 
-        self.move_home()
+        if self.robot is None:
+            self._announce_robot_disabled()
+        else:
+            try:
+                self.move_home()
+            except Exception as exc:
+                self._disable_robot(f"initial HOME move failed: {exc}")
 
         while True:
             marker_id = self.ask_marker_id()
@@ -73,13 +98,22 @@ class Planner:
                 print("Exiting")
                 return
 
+            if self.robot is None:
+                self.skip_pick_place(marker_id)
+                continue
+
             try:
                 self.run_pick_place(marker_id)
 
-            except RuntimeError as exc:
+            except Exception as exc:
                 print(f"Task skipped: {exc}")
+                self._disable_robot(f"robot task failed: {exc}")
+                continue
 
-            self.move_home()
+            try:
+                self.move_home()
+            except Exception as exc:
+                self._disable_robot(f"return HOME move failed: {exc}")
 
     def ask_marker_id(self):
         """Get the target marker from voice selection or terminal input."""
@@ -123,23 +157,79 @@ class Planner:
 
     def move_home(self):
         """Move to the taught HOME joint configuration."""
+        if self.robot is None:
+            return
         print("Moving to HOME joints")
         self.robot.move_j(self.home_joints)
 
     def move_transfer(self):
         """Move to the taught TRANSFER joint configuration."""
+        if self.robot is None:
+            return
         print("Moving to TRANSFER joints")
         self.robot.move_j(self.transfer_joints)
 
     def open_gripper(self, reason):
         """Open the gripper and print the current task reason."""
+        if self.robot is None:
+            return
         print(f"Opening gripper: {reason}")
         self.robot.open_gripper()
 
     def close_gripper(self, reason):
         """Close the gripper and print the current task reason."""
+        if self.robot is None:
+            return
         print(f"Closing gripper: {reason}")
         self.robot.close_gripper()
+
+    def skip_pick_place(self, marker_id):
+        """Keep voice/camera mode alive when robot motion is unavailable."""
+        reason = self.robot_disabled_reason or "robot is not available"
+        print(
+            f"Robot unavailable ({reason}). "
+            f"Selected marker/container ID={marker_id}; pick operation skipped."
+        )
+        self._publish_status(
+            "idle",
+            f"Robot unavailable. Selected ID={marker_id}; pick skipped.",
+            selected_id=marker_id,
+            detected_ids=self.cam.get_detected_ids(),
+        )
+
+    def _announce_robot_disabled(self):
+        reason = self.robot_disabled_reason or "robot is not available"
+        print(
+            f"Robot unavailable ({reason}). "
+            "Running camera/voice mode without robot motion."
+        )
+
+    def _disable_robot(self, reason):
+        self._stop_robot_safely()
+        self.robot_disabled_reason = reason
+        self.robot = None
+        print(
+            f"WARNING: Robot disabled: {reason}. "
+            "Camera/voice mode will continue."
+        )
+        self._publish_status(
+            "idle",
+            "Robot unavailable. Camera, Whisper and Ollama are still running.",
+            detected_ids=self.cam.get_detected_ids(),
+        )
+
+    def _publish_status(self, phase, message, **payload):
+        if self.audio_visualizer is not None:
+            self.audio_visualizer.broadcast_status(phase, message, **payload)
+
+    def _stop_robot_safely(self):
+        if self.robot is None:
+            return
+
+        try:
+            self.robot.stop()
+        except Exception as exc:
+            print(f"Robot stop warning: {exc}")
 
     def play_transition_audio_response(self, marker_id):
         """Play one random WAV response for the selected marker."""
